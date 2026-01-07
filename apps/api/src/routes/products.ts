@@ -12,7 +12,7 @@ router.get("/", requireAuth, async (req, res) => {
     where: q
       ? {
         OR: [
-          { name: { contains: q, mode: "insensitive" } },
+          { name: { contains: q} },
           { barcode: { contains: q } },
         ],
       }
