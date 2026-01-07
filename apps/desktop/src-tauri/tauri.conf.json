@@ -5,8 +5,8 @@
   "identifier": "y",
   "build": {
     "beforeDevCommand": "pnpm vite:dev",
-    "beforeBuildCommand": "pnpm build",
     "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
   "app": {

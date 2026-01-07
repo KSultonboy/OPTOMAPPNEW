@@ -5,10 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
-    "build": "tauri build",
-    "preview": "vite preview",
-    "tauri": "tauri",
-    "vite:dev": "vite --port 1420 --strictPort"
+    "vite:dev": "vite --port 1420 --strictPort",
+    "build": "vite build",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
