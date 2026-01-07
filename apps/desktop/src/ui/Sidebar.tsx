@@ -5,6 +5,7 @@ import {
     Boxes,
     ShoppingCart,
     Settings as SettingsIcon,
+    History as HistoryIcon,
 } from "lucide-react";
 
 const linkBase =
@@ -53,6 +54,7 @@ export default function Sidebar() {
                 <Item to="/receive" icon={PackagePlus} label="Qabul" />
                 <Item to="/inventory" icon={Boxes} label="Ombor" />
                 <Item to="/sales" icon={ShoppingCart} label="Sotuv" />
+                <Item to="/history" icon={HistoryIcon} label="History" />
                 <Item to="/settings" icon={SettingsIcon} label="Sozlamalar" />
             </nav>
 

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./store/auth";
-
+import History from "./pages/History";
 import Login from "./pages/Login";
 import Reports from "./pages/Reports";
 import Receive from "./pages/Receive";
@@ -43,6 +43,7 @@ export default function App() {
         <Route path="receive" element={<Receive />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="sales" element={<Sales />} />
+        <Route path="/history" element={<History />} />
         <Route path="settings" element={<Settings />} />
 
         {/* eski yo'llar bo'lsa ham reportsga ketadi */}

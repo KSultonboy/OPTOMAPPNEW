@@ -70,7 +70,7 @@ function buildReceiptHtml(receipt: SaleResponse["sale"]) {
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, sans-serif; color: #111; background: #fff; }
-    .paper { width: 320px; margin: 16px auto; padding: 12px; border: 1px solid #e5e5e5; border-radius: 12px; }
+    .paper { width: 320px; margin: 0 auto; padding: 12px; }
     .h1 { font-weight: 700; font-size: 16px; }
     .sub { margin-top: 4px; color: #666; font-size: 12px; }
     .sep { margin: 10px 0; border-top: 1px dashed #ddd; }
@@ -80,12 +80,8 @@ function buildReceiptHtml(receipt: SaleResponse["sale"]) {
     .meta { margin-top: 3px; font-size: 12px; color: #444; }
     .line { margin-top: 4px; text-align: right; font-weight: 700; font-size: 13px; }
     .total { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; font-weight: 800; }
-    .btns { display: flex; gap: 8px; margin-top: 12px; }
-    button { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-weight: 700; }
-    button.primary { background: #111; color: #fff; border-color: #111; }
     @media print {
-      .btns { display: none; }
-      .paper { border: none; margin: 0 auto; }
+      .paper { margin: 0; width: 100%; }
     }
   </style>
 </head>
@@ -109,33 +105,54 @@ function buildReceiptHtml(receipt: SaleResponse["sale"]) {
       <div>Umumiy</div>
       <div>${total}</div>
     </div>
-
-    <div class="btns">
-      <button onclick="window.close()">Yopish</button>
-      <button class="primary" onclick="window.print()">Print</button>
-    </div>
   </div>
-
-  <script>
-    // ochilishi bilan print chiqsin
-    window.onload = () => setTimeout(() => window.print(), 200);
-    // print tugagach auto-yopish
-    window.onafterprint = () => setTimeout(() => window.close(), 200);
-  </script>
 </body>
 </html>`;
 }
 
-function printReceiptNewWindow(receipt: SaleResponse["sale"]) {
+/**
+ * ✅ Tauri-friendly print:
+ * - window.open yo'q
+ * - popup block bo'lmaydi
+ * - iframe srcdoc orqali print
+ */
+async function printReceiptInline(receipt: SaleResponse["sale"]) {
   const html = buildReceiptHtml(receipt);
-  const w = window.open("", "_blank", "width=380,height=640");
-  if (!w) {
-    alert("Popup blok bo‘lishi mumkin. Browser ruxsat bering.");
+
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.setAttribute("aria-hidden", "true");
+
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow?.document;
+  if (!doc || !iframe.contentWindow) {
+    document.body.removeChild(iframe);
+    alert("Print oynasini ochib bo‘lmadi.");
     return;
   }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  // yuklanishini kutib print qilamiz
+  await new Promise((r) => setTimeout(r, 150));
+
+  iframe.contentWindow.focus();
+  iframe.contentWindow.print();
+
+  // print dialog yopilgach iframe'ni olib tashlaymiz
+  setTimeout(() => {
+    try {
+      document.body.removeChild(iframe);
+    } catch { }
+  }, 800);
 }
 
 export default function Sales() {
@@ -338,7 +355,7 @@ export default function Sales() {
         </div>
       </div>
 
-      {/* Chek (ekranda ko‘rinadi) */}
+      {/* Chek */}
       {receipt && (
         <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
@@ -351,7 +368,7 @@ export default function Sales() {
 
             <button
               type="button"
-              onClick={() => printReceiptNewWindow(receipt)}
+              onClick={() => printReceiptInline(receipt)}
               className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold hover:bg-neutral-50"
             >
               Print
