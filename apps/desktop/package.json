@@ -1,0 +1,39 @@
+{
+  "name": "desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "vite:dev": "vite --port 1420 --strictPort"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@optom/shared": "workspace:*",
+    "@tanstack/react-query": "^5.90.16",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "axios": "^1.13.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-hook-form": "^7.70.0",
+    "react-router-dom": "^7.11.0",
+    "zod": "^3.25.76",
+    "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.6.0",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  }
+}

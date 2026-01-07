@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: optom_db
+    environment:
+      POSTGRES_USER: optom
+      POSTGRES_PASSWORD: optom_pass
+      POSTGRES_DB: optomdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - optom_db_data:/var/lib/postgresql/data
+
+volumes:
+  optom_db_data:

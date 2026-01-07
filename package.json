@@ -1,0 +1,13 @@
+{
+  "name": "optomapp",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --filter ./apps/* dev",
+    "dev:api": "pnpm --filter @optom/api dev",
+    "dev:desktop": "pnpm --filter desktop dev"
+  },
+  "dependencies": {
+    "lucide-react": "^0.562.0"
+  }
+}

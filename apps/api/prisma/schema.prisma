@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  login        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum MovementType {
+  IN
+  OUT
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MIXED
+}
+
+model Product {
+  id        String  @id @default(cuid())
+  name      String
+  barcode   String? @unique
+  unit      String  @default("DONA") // string: "DONA" | "KG" | boshqalar ham bo'lishi mumkin
+  costPrice Float   @default(0)
+  salePrice Float   @default(0)
+  stockQty  Float   @default(0)
+  minQty    Float   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  receiptItems   ReceiptItem[]
+  saleItems      SaleItem[]
+  stockMovements StockMovement[]
+
+  @@index([name])
+}
+
+model Receipt {
+  id        String   @id @default(cuid())
+  note      String?
+  totalCost Float    @default(0)
+  createdAt DateTime @default(now())
+
+  items ReceiptItem[]
+}
+
+model ReceiptItem {
+  id        String  @id @default(cuid())
+  receiptId String
+  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  qty       Float
+  costPrice Float
+  lineCost  Float
+}
+
+model Sale {
+  id            String        @id @default(cuid())
+  customer      String?
+  paymentMethod PaymentMethod @default(CASH)
+  subtotal      Float         @default(0)
+  discount      Float         @default(0)
+  total         Float         @default(0)
+  createdAt     DateTime      @default(now())
+
+  items SaleItem[]
+}
+
+model SaleItem {
+  id     String @id @default(cuid())
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  qty       Float
+  price     Float
+  lineTotal Float
+}
+
+model StockMovement {
+  id        String       @id @default(cuid())
+  type      MovementType
+  qty       Float
+  note      String?
+  createdAt DateTime     @default(now())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  receiptId String?
+  saleId    String?
+}
