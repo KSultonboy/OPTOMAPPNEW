@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
+import { ProductSelect } from "../components/ProductSelect";
 
 type Product = {
   id: string;
@@ -13,7 +14,7 @@ type Product = {
 type Row = { productId: string; qty: string; costPrice: string };
 
 function fmt(n: number) {
-  return Number(n || 0).toFixed(2);
+  return Number(n || 0).toLocaleString("uz-UZ");
 }
 
 export default function Receive() {
@@ -84,7 +85,6 @@ export default function Receive() {
         if (Number.isNaN(it.costPrice) || it.costPrice < 0) throw new Error("Tannarx xato");
       }
 
-      // backend: /api/receipts (senda shu route bor)
       await api.post("/api/receipts", {
         supplier: null,
         note: null,
@@ -148,27 +148,18 @@ export default function Receive() {
                 return (
                   <tr key={i}>
                     <td className="px-4 py-3">
-                      <select
+                      <ProductSelect
+                        products={products}
                         value={r.productId}
-                        onChange={(e) => {
-                          const pid = e.target.value;
+                        onChange={(pid) => {
                           const pp = products.find((x) => x.id === pid);
                           setRow(i, {
                             productId: pid,
-                            // ✅ costPrice avtomatik
                             costPrice: pp ? String(pp.costPrice ?? 0) : r.costPrice,
                           });
                         }}
-                        className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400"
                         disabled={loading}
-                      >
-                        <option value="">{loading ? "Yuklanmoqda..." : "Tanlang"}</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </td>
 
                     <td className="px-4 py-3 text-neutral-700">{p ? p.unit : "—"}</td>
@@ -176,6 +167,8 @@ export default function Receive() {
                     <td className="px-4 py-3">
                       <input
                         value={r.qty}
+                        onFocus={(e) => { if (e.target.value === "0") setRow(i, { qty: "" }); }}
+                        onBlur={(e) => { if (e.target.value === "") setRow(i, { qty: "0" }); }}
                         onChange={(e) => setRow(i, { qty: e.target.value })}
                         className="w-28 rounded-2xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
                       />
@@ -184,6 +177,8 @@ export default function Receive() {
                     <td className="px-4 py-3">
                       <input
                         value={r.costPrice}
+                        onFocus={(e) => { if (e.target.value === "0") setRow(i, { costPrice: "" }); }}
+                        onBlur={(e) => { if (e.target.value === "") setRow(i, { costPrice: "0" }); }}
                         onChange={(e) => setRow(i, { costPrice: e.target.value })}
                         className="w-32 rounded-2xl border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
                       />

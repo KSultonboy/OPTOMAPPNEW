@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 
@@ -41,7 +41,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 /**
  * POST /api/products
- * body: { name, unit?, costPrice?, salePrice?, stockQty?, minQty?, barcode? }
+ * body: { name, unit?, costPrice?, salePrice?, loyalSalePrice?, imageUrl?, stockQty?, minQty?, barcode? }
  * barcode bizda optional (front umuman yubormasa ham bo'ladi)
  */
 router.post("/", requireAuth, async (req, res) => {
@@ -56,12 +56,19 @@ router.post("/", requireAuth, async (req, res) => {
 
   const costPrice = Number(req.body?.costPrice ?? 0);
   const salePrice = Number(req.body?.salePrice ?? 0);
+  const loyalSalePrice = Number(req.body?.loyalSalePrice ?? salePrice);
+  const imageUrlRaw = req.body?.imageUrl;
+  const imageUrl =
+    imageUrlRaw === null || imageUrlRaw === undefined || String(imageUrlRaw).trim() === ""
+      ? null
+      : String(imageUrlRaw).trim();
   const stockQty = Number(req.body?.stockQty ?? 0);
   const minQty = Number(req.body?.minQty ?? 0);
 
   if (!name) return res.status(400).json({ error: "name majburiy" });
   if (Number.isNaN(costPrice) || costPrice < 0) return res.status(400).json({ error: "costPrice xato" });
   if (Number.isNaN(salePrice) || salePrice < 0) return res.status(400).json({ error: "salePrice xato" });
+  if (Number.isNaN(loyalSalePrice) || loyalSalePrice < 0) return res.status(400).json({ error: "loyalSalePrice xato" });
   if (Number.isNaN(stockQty) || stockQty < 0) return res.status(400).json({ error: "stockQty xato" });
   if (Number.isNaN(minQty) || minQty < 0) return res.status(400).json({ error: "minQty xato" });
 
@@ -73,6 +80,8 @@ router.post("/", requireAuth, async (req, res) => {
         barcode,
         costPrice,
         salePrice,
+        loyalSalePrice,
+        imageUrl,
         stockQty,
         minQty,
       },
@@ -107,6 +116,15 @@ router.put("/:id", requireAuth, async (req, res) => {
     req.body?.costPrice !== undefined ? Number(req.body.costPrice) : undefined;
   const salePrice =
     req.body?.salePrice !== undefined ? Number(req.body.salePrice) : undefined;
+  const loyalSalePrice =
+    req.body?.loyalSalePrice !== undefined ? Number(req.body.loyalSalePrice) : undefined;
+  const imageUrlRaw = req.body?.imageUrl;
+  const imageUrl =
+    imageUrlRaw === undefined
+      ? undefined
+      : imageUrlRaw === null || String(imageUrlRaw).trim() === ""
+        ? null
+        : String(imageUrlRaw).trim();
   const stockQty =
     req.body?.stockQty !== undefined ? Number(req.body.stockQty) : undefined;
   const minQty =
@@ -115,6 +133,7 @@ router.put("/:id", requireAuth, async (req, res) => {
   if (name !== undefined && !name) return res.status(400).json({ error: "name bo'sh bo'lmasin" });
   if (costPrice !== undefined && (Number.isNaN(costPrice) || costPrice < 0)) return res.status(400).json({ error: "costPrice xato" });
   if (salePrice !== undefined && (Number.isNaN(salePrice) || salePrice < 0)) return res.status(400).json({ error: "salePrice xato" });
+  if (loyalSalePrice !== undefined && (Number.isNaN(loyalSalePrice) || loyalSalePrice < 0)) return res.status(400).json({ error: "loyalSalePrice xato" });
   if (stockQty !== undefined && (Number.isNaN(stockQty) || stockQty < 0)) return res.status(400).json({ error: "stockQty xato" });
   if (minQty !== undefined && (Number.isNaN(minQty) || minQty < 0)) return res.status(400).json({ error: "minQty xato" });
 
@@ -127,6 +146,8 @@ router.put("/:id", requireAuth, async (req, res) => {
         ...(barcode !== undefined ? { barcode } : {}),
         ...(costPrice !== undefined ? { costPrice } : {}),
         ...(salePrice !== undefined ? { salePrice } : {}),
+        ...(loyalSalePrice !== undefined ? { loyalSalePrice } : {}),
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
         ...(stockQty !== undefined ? { stockQty } : {}),
         ...(minQty !== undefined ? { minQty } : {}),
       },
@@ -149,7 +170,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     await prisma.product.delete({ where: { id } });
     res.json({ ok: true });
   } catch (e: any) {
-    const msg = e?.message || "Product o‘chirish xatolik";
+    const msg = e?.message || "Product o'chirish xatolik";
     res.status(400).json({ error: msg });
   }
 });

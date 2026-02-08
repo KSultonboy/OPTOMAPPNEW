@@ -6,9 +6,19 @@ import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET missing");
+  return secret;
+}
+
 router.post("/login", async (req, res) => {
   const login = String(req.body?.login ?? "").trim();
   const password = String(req.body?.password ?? "");
+
+  if (!login || !password) {
+    return res.status(400).json({ error: "login and password required" });
+  }
 
   const admin = await prisma.admin.findUnique({ where: { login } });
   if (!admin) return res.status(401).json({ error: "Login or password incorrect" });
@@ -16,14 +26,18 @@ router.post("/login", async (req, res) => {
   const ok = await bcrypt.compare(password, admin.passwordHash);
   if (!ok) return res.status(401).json({ error: "Login or password incorrect" });
 
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return res.status(500).json({ error: "JWT_SECRET missing" });
+  let token: string;
+  try {
+    token = jwt.sign({ adminId: admin.id }, getJwtSecret(), { expiresIn: "7d" });
+  } catch (e) {
+    return res.status(500).json({ error: "Token create failed" });
+  }
 
-  const token = jwt.sign({ adminId: admin.id }, secret, { expiresIn: "7d" });
-
+  // ✅ Frontend va eski clientlar uchun ikkalasini ham qaytaramiz
   return res.json({
     token,
     admin: { id: admin.id, login: admin.login },
+    user: { name: "Admin", login: admin.login }, // <- desktop store/auth.ts uchun
   });
 });
 
@@ -32,6 +46,10 @@ router.post("/change-password", requireAuth, async (req, res) => {
 
   const currentPassword = String(req.body?.currentPassword ?? "");
   const nextPassword = String(req.body?.nextPassword ?? "");
+
+  if (!currentPassword || !nextPassword) {
+    return res.status(400).json({ error: "currentPassword and nextPassword required" });
+  }
 
   if (nextPassword.length < 6) {
     return res.status(400).json({ error: "New password must be at least 6 chars" });
@@ -55,7 +73,9 @@ router.post("/change-login", requireAuth, async (req, res) => {
   const currentPassword = String(req.body?.currentPassword ?? "");
   const nextLogin = String(req.body?.nextLogin ?? "").trim();
 
-  if (!nextLogin) return res.status(400).json({ error: "nextLogin required" });
+  if (!currentPassword || !nextLogin) {
+    return res.status(400).json({ error: "currentPassword and nextLogin required" });
+  }
 
   const admin = await prisma.admin.findUnique({ where: { id: adminId } });
   if (!admin) return res.status(404).json({ error: "Admin not found" });
@@ -74,7 +94,10 @@ router.post("/change-login", requireAuth, async (req, res) => {
     select: { id: true, login: true },
   });
 
-  return res.json({ admin: updated });
+  return res.json({
+    admin: updated,
+    user: { name: "Admin", login: updated.login },
+  });
 });
 
 export default router;

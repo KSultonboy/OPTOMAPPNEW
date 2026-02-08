@@ -26,15 +26,22 @@ enum PaymentMethod {
   MIXED
 }
 
+enum CustomerType {
+  REGULAR
+  LOYAL
+}
+
 model Product {
-  id        String  @id @default(cuid())
-  name      String
-  barcode   String? @unique
-  unit      String  @default("DONA") // string: "DONA" | "KG" | boshqalar ham bo'lishi mumkin
-  costPrice Float   @default(0)
-  salePrice Float   @default(0)
-  stockQty  Float   @default(0)
-  minQty    Float   @default(0)
+  id             String  @id @default(cuid())
+  name           String
+  barcode        String? @unique
+  unit           String  @default("DONA") // string: "DONA" | "KG" | boshqalar ham bo'lishi mumkin
+  costPrice      Float   @default(0)
+  salePrice      Float   @default(0)
+  loyalSalePrice Float   @default(0)
+  imageUrl       String?
+  stockQty       Float   @default(0)
+  minQty         Float   @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -71,6 +78,9 @@ model ReceiptItem {
 model Sale {
   id            String        @id @default(cuid())
   customer      String?
+  customerType  CustomerType  @default(REGULAR)
+  customerId    String?
+  customerRef   Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   paymentMethod PaymentMethod @default(CASH)
   subtotal      Float         @default(0)
   discount      Float         @default(0)
@@ -78,6 +88,19 @@ model Sale {
   createdAt     DateTime      @default(now())
 
   items SaleItem[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales Sale[]
+
+  @@index([name])
 }
 
 model SaleItem {
@@ -105,4 +128,24 @@ model StockMovement {
 
   receiptId String?
   saleId    String?
+}
+
+// Expenses
+model ExpenseCategory {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  expenses  Expense[]
+  createdAt DateTime  @default(now())
+}
+
+model Expense {
+  id         String           @id @default(cuid())
+  name       String
+  amount     Float
+  note       String?
+  categoryId String?
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  createdAt  DateTime         @default(now())
+
+  @@index([createdAt])
 }

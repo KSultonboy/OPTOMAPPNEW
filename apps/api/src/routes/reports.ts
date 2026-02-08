@@ -46,7 +46,7 @@ function startOfToday() {
 router.get("/summary", requireAuth, async (_req, res) => {
   const from = startOfToday();
 
-  const [todayReceipts, todaySales, products] = await Promise.all([
+  const [todayReceipts, todaySales, todayExpenses, products] = await Promise.all([
     prisma.receipt.aggregate({
       where: { createdAt: { gte: from } },
       _sum: { totalCost: true },
@@ -55,6 +55,11 @@ router.get("/summary", requireAuth, async (_req, res) => {
     prisma.sale.aggregate({
       where: { createdAt: { gte: from } },
       _sum: { total: true },
+      _count: { _all: true },
+    }),
+    prisma.expense.aggregate({
+      where: { createdAt: { gte: from } },
+      _sum: { amount: true },
       _count: { _all: true },
     }),
     prisma.product.findMany({
@@ -72,6 +77,8 @@ router.get("/summary", requireAuth, async (_req, res) => {
       receiptTotal: Number(todayReceipts._sum.totalCost ?? 0),
       saleCount: todaySales._count._all,
       saleTotal: Number(todaySales._sum.total ?? 0),
+      expenseCount: todayExpenses._count._all,
+      expenseTotal: Number(todayExpenses._sum.amount ?? 0),
     },
     stock: {
       stockValue,
@@ -109,7 +116,19 @@ router.get("/summary-range", requireAuth, async (req, res) => {
   }
 
   // totals
-  const [receiptAgg, saleAgg, receiptCount, saleCount] = await Promise.all([
+  const [
+    receiptAgg,
+    saleAgg,
+    expenseAgg,
+    receiptCount,
+    saleCount,
+    expenseCount,
+    regularSalesAgg,
+    loyalSalesAgg,
+    regularSalesCount,
+    loyalSalesCount,
+    loyalGrouped,
+  ] = await Promise.all([
     prisma.receipt.aggregate({
       where: { createdAt: { gte: fromStart, lt: toNext } },
       _sum: { totalCost: true },
@@ -118,18 +137,82 @@ router.get("/summary-range", requireAuth, async (req, res) => {
       where: { createdAt: { gte: fromStart, lt: toNext } },
       _sum: { total: true },
     }),
+    prisma.expense.aggregate({
+      where: { createdAt: { gte: fromStart, lt: toNext } },
+      _sum: { amount: true },
+    }),
     prisma.receipt.count({ where: { createdAt: { gte: fromStart, lt: toNext } } }),
     prisma.sale.count({ where: { createdAt: { gte: fromStart, lt: toNext } } }),
+    prisma.expense.count({ where: { createdAt: { gte: fromStart, lt: toNext } } }),
+    prisma.sale.aggregate({
+      where: {
+        createdAt: { gte: fromStart, lt: toNext },
+        customerType: "REGULAR",
+      },
+      _sum: { total: true },
+    }),
+    prisma.sale.aggregate({
+      where: {
+        createdAt: { gte: fromStart, lt: toNext },
+        customerType: "LOYAL",
+      },
+      _sum: { total: true },
+    }),
+    prisma.sale.count({
+      where: {
+        createdAt: { gte: fromStart, lt: toNext },
+        customerType: "REGULAR",
+      },
+    }),
+    prisma.sale.count({
+      where: {
+        createdAt: { gte: fromStart, lt: toNext },
+        customerType: "LOYAL",
+      },
+    }),
+    prisma.sale.groupBy({
+      by: ["customerId"],
+      where: {
+        createdAt: { gte: fromStart, lt: toNext },
+        customerType: "LOYAL",
+        customerId: { not: null },
+      },
+      _sum: { total: true },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    }),
   ]);
 
+  const loyalCustomerIds = loyalGrouped
+    .map((g) => g.customerId)
+    .filter((x): x is string => Boolean(x));
+  const loyalCustomers = loyalCustomerIds.length
+    ? await prisma.customer.findMany({
+      where: { id: { in: loyalCustomerIds } },
+      select: { id: true, name: true, phone: true },
+    })
+    : [];
+
+  const loyalCustomerMap = new Map(loyalCustomers.map((c) => [c.id, c]));
+  const customerRanking = loyalGrouped
+    .map((g) => ({
+      customerId: g.customerId,
+      name: loyalCustomerMap.get(g.customerId ?? "")?.name ?? "Noma'lum mijoz",
+      phone: loyalCustomerMap.get(g.customerId ?? "")?.phone ?? null,
+      totalSales: Number(g._sum.total ?? 0),
+      saleCount: Number(g._count._all ?? 0),
+      lastSaleAt: g._max.createdAt ? g._max.createdAt.toISOString() : null,
+    }))
+    .sort((a, b) => b.totalSales - a.totalSales);
+
   // daily mini list
-  const days: { date: string; receiptsTotal: number; salesTotal: number }[] = [];
+  const days: { date: string; receiptsTotal: number; salesTotal: number; expensesTotal: number }[] = [];
 
   for (let i = 0; i < daysCount; i++) {
     const d0 = addDays(fromStart, i);
     const d1 = addDays(d0, 1);
 
-    const [r, s] = await Promise.all([
+    const [r, s, e] = await Promise.all([
       prisma.receipt.aggregate({
         where: { createdAt: { gte: d0, lt: d1 } },
         _sum: { totalCost: true },
@@ -138,12 +221,17 @@ router.get("/summary-range", requireAuth, async (req, res) => {
         where: { createdAt: { gte: d0, lt: d1 } },
         _sum: { total: true },
       }),
+      prisma.expense.aggregate({
+        where: { createdAt: { gte: d0, lt: d1 } },
+        _sum: { amount: true },
+      }),
     ]);
 
     days.push({
       date: toISODate(d0),
       receiptsTotal: Number(r._sum.totalCost ?? 0),
       salesTotal: Number(s._sum.total ?? 0),
+      expensesTotal: Number(e._sum.amount ?? 0),
     });
   }
 
@@ -155,7 +243,17 @@ router.get("/summary-range", requireAuth, async (req, res) => {
       receiptsCount: receiptCount,
       salesTotal: Number(saleAgg._sum.total ?? 0),
       salesCount: saleCount,
+      expensesTotal: Number(expenseAgg._sum.amount ?? 0),
+      expensesCount: expenseCount,
     },
+    customerSummary: {
+      regularSalesTotal: Number(regularSalesAgg._sum.total ?? 0),
+      regularSalesCount,
+      loyalSalesTotal: Number(loyalSalesAgg._sum.total ?? 0),
+      loyalSalesCount,
+      loyalCustomersCount: customerRanking.length,
+    },
+    customerRanking,
     days,
   });
 });

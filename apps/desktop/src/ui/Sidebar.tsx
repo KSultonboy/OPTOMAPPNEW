@@ -6,6 +6,7 @@ import {
     ShoppingCart,
     Settings as SettingsIcon,
     History as HistoryIcon,
+    Users,
 } from "lucide-react";
 
 const linkBase =
@@ -51,6 +52,7 @@ export default function Sidebar() {
 
             <nav className="flex flex-col gap-1">
                 <Item to="/reports" icon={LayoutDashboard} label="Hisobotlar" />
+                <Item to="/customers" icon={Users} label="Mijozlar" />
                 <Item to="/receive" icon={PackagePlus} label="Qabul" />
                 <Item to="/inventory" icon={Boxes} label="Ombor" />
                 <Item to="/sales" icon={ShoppingCart} label="Sotuv" />

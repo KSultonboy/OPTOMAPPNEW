@@ -8,11 +8,78 @@ type Product = {
   unit: string;
   costPrice: number;
   salePrice: number;
+  loyalSalePrice: number;
+  imageUrl: string | null;
   stockQty: number;
   minQty: number;
 };
 
 const DEFAULT_UNITS = ["DONA", "KG"];
+const MAX_IMAGE_DIMENSION = 1280;
+const MAX_IMAGE_DATA_URL_LENGTH = 4_500_000;
+const JPEG_QUALITY_PRIMARY = 0.82;
+const JPEG_QUALITY_FALLBACK = 0.7;
+
+function loadImageElement(file: File) {
+  const objectUrl = URL.createObjectURL(file);
+
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Rasmni o'qib bo'lmadi"));
+    };
+
+    img.src = objectUrl;
+  });
+}
+
+function canvasToDataUrl(canvas: HTMLCanvasElement, mime: string, quality?: number) {
+  return canvas.toDataURL(mime, quality);
+}
+
+async function readFileAsDataUrl(file: File) {
+  const img = await loadImageElement(file);
+
+  const ratio = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.width, img.height));
+  const targetWidth = Math.max(1, Math.round(img.width * ratio));
+  const targetHeight = Math.max(1, Math.round(img.height * ratio));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Rasmni qayta ishlashda xatolik");
+
+  ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+  const preferPng = file.type === "image/png";
+  let dataUrl = preferPng
+    ? canvasToDataUrl(canvas, "image/png")
+    : canvasToDataUrl(canvas, "image/jpeg", JPEG_QUALITY_PRIMARY);
+
+  if (dataUrl.length > MAX_IMAGE_DATA_URL_LENGTH) {
+    dataUrl = canvasToDataUrl(canvas, "image/jpeg", JPEG_QUALITY_PRIMARY);
+  }
+
+  if (dataUrl.length > MAX_IMAGE_DATA_URL_LENGTH) {
+    dataUrl = canvasToDataUrl(canvas, "image/jpeg", JPEG_QUALITY_FALLBACK);
+  }
+
+  if (dataUrl.length > MAX_IMAGE_DATA_URL_LENGTH) {
+    throw new Error("Rasm juda katta. Iltimos kichikroq rasm tanlang.");
+  }
+
+  if (!dataUrl) throw new Error("Rasmni o'qib bo'lmadi");
+  return dataUrl;
+}
 
 function Modal({
   open,
@@ -28,7 +95,7 @@ function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-      <div className="w-full max-w-lg rounded-3xl border border-neutral-200 bg-white p-6 shadow-lg">
+      <div className="w-full max-w-xl rounded-3xl border border-neutral-200 bg-white p-6 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="text-base font-semibold text-neutral-900">{title}</div>
           <button
@@ -59,7 +126,9 @@ export default function Inventory() {
   const [customUnit, setCustomUnit] = useState("");
   const [costPrice, setCostPrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
+  const [loyalSalePrice, setLoyalSalePrice] = useState("0");
   const [minQty, setMinQty] = useState("0");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   async function fetchProducts() {
     setLoading(true);
@@ -94,7 +163,9 @@ export default function Inventory() {
     setCustomUnit("");
     setCostPrice("0");
     setSalePrice("0");
+    setLoyalSalePrice("0");
     setMinQty("0");
+    setImageUrl(null);
     setOpen(true);
   }
 
@@ -105,8 +176,26 @@ export default function Inventory() {
     setCustomUnit(DEFAULT_UNITS.includes(p.unit) ? "" : p.unit);
     setCostPrice(String(p.costPrice ?? 0));
     setSalePrice(String(p.salePrice ?? 0));
+    setLoyalSalePrice(String(p.loyalSalePrice ?? 0));
     setMinQty(String(p.minQty ?? 0));
+    setImageUrl(p.imageUrl ?? null);
     setOpen(true);
+  }
+
+  async function onPickImage(file?: File | null) {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Faqat rasm fayl tanlang");
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setImageUrl(dataUrl);
+    } catch (e: any) {
+      setError(e?.message || "Rasmni o'qishda xatolik");
+    }
   }
 
   async function onSave(e: React.FormEvent) {
@@ -115,16 +204,18 @@ export default function Inventory() {
     setError(null);
 
     try {
-      const finalUnit =
-        unit === "CUSTOM" ? customUnit.trim().toUpperCase() : unit;
+      const finalUnit = unit === "CUSTOM" ? customUnit.trim().toUpperCase() : unit;
+      const parsedSalePrice = Number(salePrice);
+      const parsedLoyalSalePrice = Number(loyalSalePrice);
 
       const payload = {
         name: name.trim(),
-        // barcode yubormaymiz
         unit: finalUnit || "DONA",
         costPrice: Number(costPrice),
-        salePrice: Number(salePrice),
+        salePrice: parsedSalePrice,
+        loyalSalePrice: parsedLoyalSalePrice > 0 ? parsedLoyalSalePrice : parsedSalePrice,
         minQty: Number(minQty),
+        imageUrl,
       };
 
       if (!payload.name) {
@@ -151,7 +242,7 @@ export default function Inventory() {
   }
 
   async function onDelete(p: Product) {
-    const ok = window.confirm(`O‘chirasizmi? (${p.name})`);
+    const ok = window.confirm(`O'chirasizmi? (${p.name})`);
     if (!ok) return;
 
     setSaving(true);
@@ -160,7 +251,7 @@ export default function Inventory() {
       await api.delete(`/api/products/${p.id}`);
       await fetchProducts();
     } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "O‘chirishda xatolik");
+      setError(e?.response?.data?.error || e?.message || "O'chirishda xatolik");
     } finally {
       setSaving(false);
     }
@@ -172,7 +263,7 @@ export default function Inventory() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-lg font-semibold text-neutral-900">Ombor</div>
-            <div className="mt-1 text-sm text-neutral-600">Mahsulotlar va qoldiq</div>
+            <div className="mt-1 text-sm text-neutral-600">Mahsulotlar, narxlar va rasm</div>
           </div>
           <div className="flex gap-2">
             <button
@@ -194,7 +285,7 @@ export default function Inventory() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Qidiruv: nom bo‘yicha"
+            placeholder="Qidiruv: nom bo'yicha"
             className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none focus:border-neutral-400"
           />
           <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600">
@@ -218,42 +309,50 @@ export default function Inventory() {
                 <th className="px-4 py-3 text-left font-semibold">Birlik</th>
                 <th className="px-4 py-3 text-left font-semibold">Qoldiq</th>
                 <th className="px-4 py-3 text-left font-semibold">Tannarx</th>
-                <th className="px-4 py-3 text-left font-semibold">Sotuv</th>
+                <th className="px-4 py-3 text-left font-semibold">Oddiy narx</th>
+                <th className="px-4 py-3 text-left font-semibold">Sodiq narx</th>
                 <th className="px-4 py-3 text-right font-semibold">Amallar</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {loading ? (
                 <tr>
-                  <td className="px-4 py-5 text-neutral-500" colSpan={6}>
+                  <td className="px-4 py-5 text-neutral-500" colSpan={7}>
                     Yuklanmoqda...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-5 text-neutral-500" colSpan={6}>
-                    Hozircha mahsulot yo‘q
+                  <td className="px-4 py-5 text-neutral-500" colSpan={7}>
+                    Hozircha mahsulot yo'q
                   </td>
                 </tr>
               ) : (
                 items.map((p) => (
                   <tr key={p.id} className="hover:bg-neutral-50">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-neutral-900">{p.name}</div>
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100">
+                          {p.imageUrl ? (
+                            <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                          ) : null}
+                        </div>
+                        <div className="font-semibold text-neutral-900">{p.name}</div>
+                      </div>
                     </td>
                     <td className="px-4 py-3">{p.unit}</td>
                     <td className="px-4 py-3">
                       <span
-                        className={`rounded-full px-2 py-1 text-xs font-semibold ${p.stockQty <= p.minQty
-                            ? "bg-red-50 text-red-700"
-                            : "bg-emerald-50 text-emerald-700"
-                          }`}
+                        className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                          p.stockQty <= p.minQty ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"
+                        }`}
                       >
                         {p.stockQty}
                       </span>
                     </td>
                     <td className="px-4 py-3">{p.costPrice}</td>
                     <td className="px-4 py-3">{p.salePrice}</td>
+                    <td className="px-4 py-3">{p.loyalSalePrice ?? 0}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
                         <button
@@ -267,7 +366,7 @@ export default function Inventory() {
                           disabled={saving}
                           className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60"
                         >
-                          O‘chirish
+                          O'chirish
                         </button>
                       </div>
                     </td>
@@ -279,11 +378,7 @@ export default function Inventory() {
         </div>
       </div>
 
-      <Modal
-        open={open}
-        title={editing ? "Mahsulotni tahrirlash" : "Yangi mahsulot"}
-        onClose={() => setOpen(false)}
-      >
+      <Modal open={open} title={editing ? "Mahsulotni tahrirlash" : "Yangi mahsulot"} onClose={() => setOpen(false)}>
         <form onSubmit={onSave} className="space-y-4">
           <div>
             <label className="text-sm font-medium text-neutral-900">Nomi *</label>
@@ -324,20 +419,72 @@ export default function Inventory() {
             )}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium text-neutral-900">Mahsulot rasmi</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => onPickImage(e.target.files?.[0])}
+                className="mt-2 block w-full text-sm text-neutral-700"
+              />
+              {imageUrl ? (
+                <div className="mt-3">
+                  <div className="h-24 w-24 overflow-hidden rounded-xl border border-neutral-200">
+                    <img src={imageUrl} alt="preview" className="h-full w-full object-cover" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl(null)}
+                    className="mt-2 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-xs hover:bg-neutral-50"
+                  >
+                    Rasmni olib tashlash
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
             <div>
               <label className="text-sm font-medium text-neutral-900">Tannarx</label>
               <input
                 value={costPrice}
+                onFocus={(e) => {
+                  if (e.target.value === "0") setCostPrice("");
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === "") setCostPrice("0");
+                }}
                 onChange={(e) => setCostPrice(e.target.value)}
                 className="mt-2 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-neutral-400"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-neutral-900">Sotuv narxi</label>
+              <label className="text-sm font-medium text-neutral-900">Oddiy narx</label>
               <input
                 value={salePrice}
+                onFocus={(e) => {
+                  if (e.target.value === "0") setSalePrice("");
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === "") setSalePrice("0");
+                }}
                 onChange={(e) => setSalePrice(e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-neutral-400"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-neutral-900">Sodiq narx</label>
+              <input
+                value={loyalSalePrice}
+                onFocus={(e) => {
+                  if (e.target.value === "0") setLoyalSalePrice("");
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === "") setLoyalSalePrice("0");
+                }}
+                onChange={(e) => setLoyalSalePrice(e.target.value)}
                 className="mt-2 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-neutral-400"
               />
             </div>
@@ -345,6 +492,12 @@ export default function Inventory() {
               <label className="text-sm font-medium text-neutral-900">Min qoldiq</label>
               <input
                 value={minQty}
+                onFocus={(e) => {
+                  if (e.target.value === "0") setMinQty("");
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === "") setMinQty("0");
+                }}
                 onChange={(e) => setMinQty(e.target.value)}
                 className="mt-2 w-full rounded-2xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-neutral-400"
               />

@@ -8,6 +8,7 @@ import Receive from "./pages/Receive";
 import Inventory from "./pages/Inventory";
 import Sales from "./pages/Sales";
 import Settings from "./pages/Settings";
+import Customers from "./pages/Customers";
 
 import DashboardLayout from "./ui/DashboardLayout";
 
@@ -40,6 +41,7 @@ export default function App() {
         <Route index element={<Navigate to="/reports" replace />} />
 
         <Route path="reports" element={<Reports />} />
+        <Route path="customers" element={<Customers />} />
         <Route path="receive" element={<Receive />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="sales" element={<Sales />} />

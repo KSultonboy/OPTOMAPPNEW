@@ -5,9 +5,23 @@
   "scripts": {
     "dev": "pnpm -r --filter ./apps/* dev",
     "dev:api": "pnpm --filter @optom/api dev",
-    "dev:desktop": "pnpm --filter desktop dev"
+    "dev:desktop": "pnpm --filter desktop dev",
+    "build:api": "pnpm --filter @optom/api build",
+    "build:desktop": "pnpm --filter desktop tauri:build",
+    "build:mobile:preview": "pnpm --filter mobile build:android:preview",
+    "build:mobile:prod": "pnpm --filter mobile build:android:prod",
+    "deploy:api:pm2": "pnpm --filter @optom/api build && pm2 start apps/api/ecosystem.config.cjs --env production"
   },
   "dependencies": {
+    "@isaacs/brace-expansion": "^5.0.0",
     "lucide-react": "^0.562.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "lru-cache": "^10.0.0",
+      "@babel/helper-compilation-targets>lru-cache": "^5.1.1",
+      "glob": "^10.0.0",
+      "path-scurry": "^2.0.0"
+    }
   }
 }
